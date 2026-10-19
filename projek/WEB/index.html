@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GudangPro - Inventory System v2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .active-menu { @apply bg-blue-600 text-white shadow-md; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans" x-data="inventoryApp()">
+
+    <template x-if="!isLogged">
+        <div class="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+            <div class="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-extrabold text-slate-800">GudangPro</h2>
+                    <p class="text-slate-500 mt-2">Masuk untuk mengelola gudang</p>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Username</label>
+                        <input type="text" x-model="loginForm.user" placeholder="admin / petugas" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Password</label>
+                        <input type="password" x-model="loginForm.pass" placeholder="••••••••" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+                    <button @click="doLogin()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl shadow-lg transition duration-300">Login Sekarang</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="isLogged">
+        <div class="flex min-h-screen">
+            <aside class="w-72 bg-slate-900 text-slate-300 hidden md:flex flex-col sticky top-0 h-screen">
+                <div class="p-8 text-2xl font-black text-white tracking-tighter border-b border-slate-800">
+                    📦 GUDANG<span class="text-blue-500">PRO</span>
+                </div>
+                
+                <nav class="flex-1 p-6 space-y-2 overflow-y-auto">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Utama</p>
+                    <button @click="currentView = 'dashboard'" :class="currentView === 'dashboard' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        📊 Dashboard
+                    </button>
+                    <button @click="currentView = 'barang'" :class="currentView === 'barang' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        📦 Data Barang
+                    </button>
+
+                    <div x-data="{ open: false }" x-show="userRole === 'Admin'">
+                        <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 transition">
+                            <div class="flex items-center gap-3">⚙️ Kelola Master</div>
+                            <span :class="open ? 'rotate-180' : ''" class="text-xs transition">▼</span>
+                        </button>
+                        <div x-show="open" x-cloak class="mt-2 ml-4 pl-4 border-l border-slate-700 space-y-2 text-sm">
+                            <button @click="currentView = 'user_manage'" class="block py-2 hover:text-white transition w-full text-left">Kelola User</button>
+                            <button @click="currentView = 'supplier'" class="block py-2 hover:text-white transition w-full text-left">Data Supplier</button>
+                        </div>
+                    </div>
+
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mt-8 mb-4">Transaksi</p>
+                    <button @click="currentView = 'transaksi_masuk'" :class="currentView === 'transaksi_masuk' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        📥 Barang Masuk
+                    </button>
+                    <button @click="currentView = 'transaksi_keluar'" :class="currentView === 'transaksi_keluar' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        📤 Barang Keluar
+                    </button>
+
+                    <button x-show="userRole === 'Admin'" @click="currentView = 'laporan'" :class="currentView === 'laporan' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition mt-4">
+                        📄 Lihat Laporan
+                    </button>
+                </nav>
+
+                <div class="p-6 border-t border-slate-800 space-y-2">
+                    <button @click="currentView = 'profile'" class="w-full flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-slate-800 transition">
+                        👤 Profil Saya
+                    </button>
+                    <button @click="isLogged = false" class="w-full flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-red-500/10 text-red-400 transition">
+                        🚪 Logout
+                    </button>
+                </div>
+            </aside>
+
+            <main class="flex-1 overflow-y-auto h-screen bg-slate-50">
+                <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-40">
+                    <h2 class="text-xl font-bold text-slate-800 capitalize" x-text="currentView.replace('_', ' ')"></h2>
+                    <div class="flex items-center gap-4 cursor-pointer" @click="currentView = 'profile'">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm font-bold text-slate-800" x-text="profile.nama"></p>
+                            <p class="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter" x-text="userRole"></p>
+                        </div>
+                        <img :src="profile.foto" class="w-10 h-10 rounded-xl object-cover ring-2 ring-slate-100">
+                    </div>
+                </header>
+
+                <div class="p-8">
+                    <div x-show="currentView === 'dashboard'" x-cloak class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <p class="text-slate-500 text-sm font-medium uppercase tracking-wider">Total Barang</p>
+                                <h4 class="text-4xl font-black text-slate-800 mt-2" x-text="items.length"></h4>
+                            </div>
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <p class="text-slate-500 text-sm font-medium uppercase tracking-wider">Laporan Hari Ini</p>
+                                <h4 class="text-4xl font-black text-blue-600 mt-2" x-text="reports.filter(r => r.waktu.includes(new Date().toLocaleDateString())).length"></h4>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900 rounded-3xl p-10 text-white relative overflow-hidden shadow-2xl">
+                            <div class="relative z-10">
+                                <h2 class="text-3xl font-bold">Halo, <span x-text="profile.nama"></span>!</h2>
+                                <p class="text-slate-400 mt-2 max-w-md">Sistem siap digunakan. Semua aktivitas akan dicatat otomatis ke dalam laporan audit.</p>
+                            </div>
+                            <div class="absolute right-[-20px] bottom-[-40px] text-[200px] opacity-10 rotate-12">📦</div>
+                        </div>
+                    </div>
+
+                    <div x-show="currentView === 'barang'" x-cloak>
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="p-6 border-b flex justify-between items-center bg-slate-50/50">
+                                <h3 class="font-bold text-slate-800">Inventori Stok</h3>
+                                <button @click="showModal = true" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:shadow-lg transition">+ Barang Baru</button>
+                            </div>
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                                    <tr>
+                                        <th class="px-6 py-4">Kode</th>
+                                        <th class="px-6 py-4">Nama Barang</th>
+                                        <th class="px-6 py-4">Kategori</th>
+                                        <th class="px-6 py-4">Stok</th>
+                                        <th class="px-6 py-4">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <template x-for="item in items" :key="item.id">
+                                        <tr class="hover:bg-slate-50/50 transition">
+                                            <td class="px-6 py-4 font-mono text-sm text-blue-600 font-bold" x-text="item.kode"></td>
+                                            <td class="px-6 py-4 font-bold text-slate-700" x-text="item.nama"></td>
+                                            <td class="px-6 py-4 text-slate-500" x-text="item.kategori"></td>
+                                            <td class="px-6 py-4 font-black text-slate-800" x-text="item.stok"></td>
+                                            <td class="px-6 py-4">
+                                                <span :class="item.stok < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'" class="px-3 py-1 rounded-lg text-[10px] font-black uppercase" x-text="item.stok < 10 ? 'Kritis' : 'Aman'"></span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div x-show="['transaksi_masuk', 'transaksi_keluar'].includes(currentView)" x-cloak class="max-w-2xl">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                            <h3 class="text-2xl font-bold text-slate-800 mb-6" x-text="currentView === 'transaksi_masuk' ? '📥 Input Barang Masuk' : '📤 Input Barang Keluar'"></h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Pilih Barang</label>
+                                    <select x-model="transaksi.nama" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                                        <option value="">-- Pilih dari Stok --</option>
+                                        <template x-for="item in items">
+                                            <option :value="item.nama" x-text="item.nama + ' (Stok: '+item.stok+')'"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Jumlah</label>
+                                    <input type="number" x-model.number="transaksi.jumlah" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                
+                                <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                                    <p class="text-sm text-blue-800">
+                                        Stok Akhir Estimasi: <span class="font-bold text-lg" x-text="calculatePreview()"></span>
+                                    </p>
+                                </div>
+
+                                <button @click="submitTransaksi()" class="w-full py-4 bg-slate-800 text-white font-bold rounded-2xl hover:bg-slate-700 transition shadow-lg">Proses Transaksi</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="currentView === 'laporan'" x-cloak>
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="p-6 border-b bg-slate-50/50">
+                                <h3 class="font-bold text-slate-800">Audit Trail Log</h3>
+                            </div>
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 text-slate-400 text-[10px] font-black uppercase">
+                                    <tr>
+                                        <th class="px-6 py-4">Waktu</th>
+                                        <th class="px-6 py-4">User</th>
+                                        <th class="px-6 py-4">Aksi</th>
+                                        <th class="px-6 py-4">Detail</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <template x-for="log in reports" :key="log.id">
+                                        <tr>
+                                            <td class="px-6 py-4 text-slate-400 font-mono" x-text="log.waktu"></td>
+                                            <td class="px-6 py-4"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-bold" x-text="log.user"></span></td>
+                                            <td class="px-6 py-4 font-bold text-slate-700" x-text="log.aksi"></td>
+                                            <td class="px-6 py-4 text-slate-500 italic" x-text="log.detail"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div x-show="currentView === 'profile'" x-cloak class="max-w-2xl mx-auto">
+                        <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                            <div class="h-32 bg-gradient-to-r from-slate-800 to-slate-900"></div>
+                            <div class="px-8 pb-8">
+                                <div class="relative -mt-16 mb-6 flex items-end justify-between">
+                                    <div class="relative group">
+                                        <img :src="profile.foto" class="w-32 h-32 rounded-3xl border-4 border-white shadow-xl object-cover bg-white">
+                                        <label class="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl opacity-0 group-hover:opacity-100 cursor-pointer transition text-white text-xs font-black">
+                                            UPLOAD FOTO
+                                            <input type="file" class="hidden" @change="uploadFoto">
+                                        </label>
+                                    </div>
+                                    <div class="pb-2">
+                                        <span class="bg-blue-600 text-white px-4 py-1 rounded-full text-xs font-bold" x-text="userRole"></span>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-[10px] font-black text-slate-400 uppercase">Username</label>
+                                            <input type="text" x-model="profile.username" class="w-full mt-1 px-4 py-3 bg-slate-50 border rounded-xl" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-black text-slate-400 uppercase">Display Name</label>
+                                            <input type="text" x-model="profile.nama" class="w-full mt-1 px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                    <button @click="saveProfile()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200">Simpan Perubahan</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="currentView === 'user_manage'" x-cloak class="max-w-2xl">
+                        <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
+                            <h3 class="text-xl font-bold mb-6">Tambah Petugas Baru</h3>
+                            <div class="space-y-4">
+                                <input type="text" placeholder="Username" x-model="newUser.user" class="w-full px-4 py-3 border rounded-xl bg-slate-50 outline-none">
+                                <input type="password" placeholder="Password" x-model="newUser.pass" class="w-full px-4 py-3 border rounded-xl bg-slate-50 outline-none">
+                                <button @click="addUser()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold">Daftarkan Petugas</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <div x-show="showModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div @click.away="showModal = false" class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+                    <h2 class="text-2xl font-black mb-6">Tambah Barang Baru</h2>
+                    <div class="space-y-4">
+                        <input type="text" x-model="newItem.kode" placeholder="Kode (BRG-XXX)" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
+                        <input type="text" x-model="newItem.nama" placeholder="Nama Barang" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
+                        <select x-model="newItem.kategori" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
+                            <option>Alat Kantor</option>
+                            <option>Elektronik</option>
+                            <option>Material</option>
+                        </select>
+                        <input type="number" x-model.number="newItem.stok" placeholder="Stok Awal" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
+                        <div class="flex gap-2 mt-4">
+                            <button @click="showModal = false" class="flex-1 py-3 font-bold text-slate-400">Batal</button>
+                            <button @click="addItem()" class="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        function inventoryApp() {
+            return {
+                isLogged: false,
+                userRole: '',
+                currentView: 'dashboard',
+                showModal: false,
+                
+                loginForm: { user: '', pass: '' },
+                newItem: { kode: '', nama: '', kategori: 'Alat Kantor', stok: 0 },
+                newUser: { user: '', pass: '' },
+                transaksi: { nama: '', jumlah: 0 },
+                
+                profile: {
+                    username: '',
+                    nama: '',
+                    foto: 'https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff'
+                },
+
+                items: [
+                    { id: 1, kode: 'BRG-001', nama: 'Kertas A4 80gr', kategori: 'Alat Kantor', stok: 50 },
+                    { id: 2, kode: 'BRG-002', nama: 'Laptop Thinkpad', kategori: 'Elektronik', stok: 8 },
+                    { id: 3, kode: 'BRG-003', nama: 'Semen Gresik', kategori: 'Material', stok: 120 },
+                ],
+
+                reports: [
+                    { id: 1, waktu: '16/04/2026, 09.00.00', user: 'System', aksi: 'Init', detail: 'Sistem Berhasil Dimuat' }
+                ],
+
+                doLogin() {
+                    if((this.loginForm.user === 'admin' && this.loginForm.pass === 'admin123') || 
+                       (this.loginForm.user === 'petugas' && this.loginForm.pass === 'petugas123')) {
+                        
+                        this.userRole = this.loginForm.user === 'admin' ? 'Admin' : 'Petugas';
+                        this.profile.username = this.loginForm.user;
+                        this.profile.nama = this.userRole + ' Gudang';
+                        this.profile.foto = `https://ui-avatars.com/api/?name=${this.userRole}+Gudang&background=random&color=fff`;
+                        this.isLogged = true;
+                        
+                        this.addLog('Login', 'Berhasil masuk ke sistem');
+                        Swal.fire({ icon: 'success', title: 'Welcome!', timer: 1000, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Error', 'Cek username/password bre!', 'error');
+                    }
+                },
+
+                addItem() {
+                    if(!this.newItem.nama || !this.newItem.kode) return Swal.fire('Error', 'Lengkapi data!', 'warning');
+                    this.items.push({ ...this.newItem, id: Date.now() });
+                    this.addLog('Tambah Barang', `Menambah barang baru: ${this.newItem.nama}`);
+                    this.showModal = false;
+                    this.newItem = { kode: '', nama: '', kategori: 'Alat Kantor', stok: 0 };
+                    Swal.fire('Sukses', 'Barang ditambahkan', 'success');
+                },
+
+                calculatePreview() {
+                    const item = this.items.find(i => i.nama === this.transaksi.nama);
+                    if (!item) return 0;
+                    return this.currentView === 'transaksi_masuk' 
+                        ? item.stok + (this.transaksi.jumlah || 0)
+                        : item.stok - (this.transaksi.jumlah || 0);
+                },
+
+                submitTransaksi() {
+                    let item = this.items.find(i => i.nama === this.transaksi.nama);
+                    if(!item || this.transaksi.jumlah <= 0) return Swal.fire('Error', 'Input tidak valid', 'warning');
+
+                    if(this.currentView === 'transaksi_keluar') {
+                        if(item.stok < this.transaksi.jumlah) return Swal.fire('Gagal', 'Stok tidak cukup!', 'error');
+                        item.stok -= this.transaksi.jumlah;
+                        this.addLog('Barang Keluar', `${this.transaksi.jumlah} unit ${item.nama} keluar`);
+                    } else {
+                        item.stok += this.transaksi.jumlah;
+                        this.addLog('Barang Masuk', `${this.transaksi.jumlah} unit ${item.nama} masuk`);
+                    }
+
+                    this.transaksi = { nama: '', jumlah: 0 };
+                    Swal.fire('Berhasil', 'Transaksi tercatat!', 'success');
+                },
+
+                addLog(aksi, detail) {
+                    this.reports.unshift({
+                        id: Date.now(),
+                        waktu: new Date().toLocaleString(),
+                        user: this.profile.username,
+                        aksi: aksi,
+                        detail: detail
+                    });
+                },
+
+                uploadFoto(e) {
+                    const file = e.target.files[0];
+                    if(file) {
+                        this.profile.foto = URL.createObjectURL(file);
+                        this.addLog('Update Profile', 'Mengganti foto profil');
+                        Swal.fire('Sukses', 'Foto profil terpasang!', 'success');
+                    }
+                },
+
+                saveProfile() {
+                    this.addLog('Update Profile', 'Mengubah data profil');
+                    Swal.fire('Tersimpan', 'Profil diperbarui', 'success');
+                },
+
+                addUser() {
+                    if(!this.newUser.user) return;
+                    this.addLog('Manage User', `Mendaftarkan user baru: ${this.newUser.user}`);
+                    Swal.fire('Sukses', `Petugas ${this.newUser.user} berhasil didaftarkan`, 'success');
+                    this.newUser = { user: '', pass: '' };
+                }
+            }
+        }
+    </script>
+</body>
+</html>
